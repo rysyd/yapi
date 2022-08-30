@@ -104,5 +104,98 @@
 ---
    
  #### 
-  **方式三**  `docker容器`  
-   待定
+#### 方式三  `docker 容器`  
+**1. Build Yapi 镜像**
+```
+# 仓库根目录下执行
+docker build . -t zybieku/yapi
+```
+**2. MongoDB 部署**
+```
+# 运行 mongo-db
+docker run -d \
+  --name yapi-mongodb \ 
+  --restart always \
+  -p 27017:27017 \
+  -v $PWD/mongo-data:/data/db \
+  -e MONGO_INITDB_DATABASE=yapi \ 
+  -e MONGO_INITDB_ROOT_USERNAME=yapipro \
+  -e MONGO_INITDB_ROOT_PASSWORD=yapipro1024 \
+  mongo
+```
+初始化数据库：
+```
+# 进入 mongodb 容器
+docker exec -it yapi-mongodb /bin/sh
+# 进入 mongo cli
+mongsh
+# 以下命令在 mongo cli 执行
+use admin;
+db.auth("yapipro", "yapipro1024");
+# 创建 yapi 数据库
+use yapi;
+# 创建给 yapi 使用的账号和密码，限制权限
+db.createUser({
+  user: 'yapi',
+  pwd: 'yapi123456',
+  roles: [
+ { role: "dbAdmin", db: "yapi" },
+ { role: "readWrite", db: "yapi" }
+  ]
+});
+# 退出 Mongo Cli
+exit
+# 退出容器
+exit
+```
+
+
+在宿主机的当前目录，根据自己修改创建一个 Yapi 配置文件 config.json
+```
+{
+   "port": "3000",
+   "adminAccount": "admin@gmail.com",
+   "timeout":120000,
+   "db": {
+     "servername": "宿主机IP",
+     "DATABASE": "yapi",
+     "port": 27017,
+     "user": "yapi",
+     "pass": "yapi123456",
+     "authSource": ""
+   },
+   "mail": {
+     "enable": false,
+     "host": "smtp.gmail.com",
+     "port": 465,
+     "from": "*",
+     "auth": {
+       "user": "hexiaohei1024@gmail.com",
+       "pass": "xxx"
+     }
+   }
+}
+```
+
+**3. 启动 Yapi**
+初始化数据库表
+```
+docker run -d --rm \
+  --name yapi-init \
+  -v $PWD/config.json:/yapi/config.json \
+   yapipro/yapi \
+  server/install.js
+```
+初始化管理员账号在上面的 config.json 配置中 admin@gmail.com，初始密码是 yapi.pro或者ymfe.org，可以登录后进入个人中心修改
+```
+docker run -d \
+  --name yapi \
+  --restart always \
+  -p 3000:3000 \
+  -v $PWD/config.json:/yapi/config.json \
+  zybieku/yapi server/app.js
+```
+在服务器上验证 yapi 启动是否成功
+```
+curl localhost:3000
+```
